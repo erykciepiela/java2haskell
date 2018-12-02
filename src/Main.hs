@@ -30,7 +30,7 @@ import qualified Network.HTTP.Client.TLS as TLS
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 
 -- Java enum -> Haskell Algebraic Data Type - sum
-data Fuel = Diesel | Gas | LPG deriving Show
+data Fuel = Diesel | Gas | LPG deriving Show -- `deriving` will be explained later
 data Ticket = Ticket20Min | Ticket40Min | Ticket60Min
 data Person = Adult | Child | SmallChild deriving Show
 
@@ -249,7 +249,7 @@ instance GeneratesCost Car LengthKilometers where
   generatedCost (Car fuel fuelConsumptionLitresPerKilometer) = fuelCost fuel fuelConsumptionLitresPerKilometer
 
 data Leg = Leg {
-  legDuration :: DurationSeconds,
+  legSeconds :: DurationSeconds,
   legKilometers :: LengthKilometers
 }
 
@@ -260,7 +260,7 @@ instance GeneratesCost Travelers Leg where
   generatedCost travelers leg = case transport travelers of
     CarTransport car -> generatedCost car (legKilometers leg)
     BikeTransport -> Right noCost
-    PublicTransport -> foldMap (`generatedCost` legDuration leg) (persons travelers)
+    PublicTransport -> foldMap (`generatedCost` legSeconds leg) (persons travelers)
 
 -- Java type parameters in class definition -> Haskell parametrized data types
 data RouteStop a = RouteStop {
@@ -337,7 +337,7 @@ data Journey = Journey {
 
 updateRouteSummary :: Travelers -> Leg -> RouteSummary -> Either Exception RouteSummary
 updateRouteSummary travelers leg routeSummary@RouteSummary{ routeSummaryCost=routeSummaryCost, routeSummaryTime=routeSummaryTime } = case generatedCost travelers leg of
-  Right legCost -> Right RouteSummary{ routeSummaryCost = mappend legCost routeSummaryCost, routeSummaryTime = addUTCTime (legDuration leg) routeSummaryTime }
+  Right legCost -> Right RouteSummary{ routeSummaryCost = mappend legCost routeSummaryCost, routeSummaryTime = addUTCTime (legSeconds leg) routeSummaryTime }
   Left exc -> Left exc
 
 -- Java I/O -> Haskell IO Monad
@@ -362,7 +362,7 @@ updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 
         firstLeg <- listToMaybe (G.legs firstRoute)
         let diffTimeSeconds = (fromInteger . G.value . G.duration) firstLeg
         let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
-        return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
+        return Leg{ legSeconds=diffTimeSeconds, legKilometers=distanceMeters/1000 }
 
 computeJourneySummaryWithGoogleDirections :: HTTP.Manager -> G.ApiKey -> Journey -> IO (Either Exception RouteSummary)
 computeJourneySummaryWithGoogleDirections manager googleApiKey journey = traverseRoute traverseMovement traverseStop startRouteSummary (route journey)
