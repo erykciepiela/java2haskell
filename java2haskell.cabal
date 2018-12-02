@@ -15,10 +15,18 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
-library
-  -- exposed-modules:
-  -- other-modules:
-  -- other-extensions:
-  build-depends:       base >=4.9 && <4.10, time, aeson, bytestring, HTTP, http-client, http-client-tls, http-conduit
+executable java2haskell
   hs-source-dirs:      src
+  main-is:             Main.hs
+  -- other-modules:       Brew.BeerStyles, Brew.Brewing, Brew.UnitsOfMeasure
+  build-depends:       base >=4.9 && <4.10, time, aeson, bytestring, HTTP, http-client, http-client-tls, http-conduit
   default-language:    Haskell2010
+
+
+-- library
+--   -- exposed-modules:
+--   -- other-modules:
+--   -- other-extensions:
+--   build-depends:       base >=4.9 && <4.10, time, aeson, bytestring, HTTP, http-client, http-client-tls, http-conduit
+--   hs-source-dirs:      src
+--   default-language:    Haskell2010
