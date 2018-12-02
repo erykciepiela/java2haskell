@@ -1,197 +1,175 @@
 -- Traveling from Java to Haskell
 
--- Quite a long distance to travel but many times we were already mentally there:
---   lambdas - Java 8
---   immutable objects - concurrency, safety, reasoning, memory management, Guava, Vavr
---   value objects - POJOs, Lombok
---   limiting side effects - Stream API, reactive programming, refactoring
---   lazy evaluation - suppliers, Callable
---   testability - given/when/then
---
-
--- Some things remain the same
---   memory management/garbage collection
--- Some are fundamentally different
---  pure functional
---  lazy
---  strongly statically typed
---  type inference
---  no inheritence
---  no primitive/complex data types distinction
---  compiled to native code (but nowadays we ship docker containers anyway?)
---  interpreter (REPL) available
---  more general purpose language
-
--- Some say Haskell is difficult
---   Monoids, Semigroups, Rings, Monads, Applicative
---   monoid in the category of endofunctors
---   Yoneda lemma
-
--- But what about OOP?
---  "owijaczka"
---  "to zależy"
---  AbstractSingletonProxyFactoryBean, SimpleRemoteStatelessSessionProxyFactoryBean, @EnableMagic
---  polymorphic methods in arguments
---  boxing
---  switch/case
---  Java generics, super/extends, covariant/contravariant, PECS
---  UML
---  static source code analysis
-
 -- Java Specification Requests -> Haskell language extensions
--- Haskell 2010 specification of base language supplemented with
+--   - Haskell 2010 specification of base language
+--   - supplemented with language extensions
 {-# LANGUAGE RankNTypes, FlexibleInstances, ScopedTypeVariables,
     MultiParamTypeClasses, FlexibleContexts, GADTs, FunctionalDependencies #-}
 
 -- Java package -> Haskell module
--- Generally *.java files in Java maps to fragments of *.hs files in Haskell.
--- Java package directories map to a single *.hs file in Haskell.
--- Java packages are grouped into libraries, Haskell modules are grouped into packages.
+--   - Java package is a directory, Haskell module is a single *.hs file
+--   - *.java files map to fragments of *.hs files
+--   - Java packages grouped into libraries, Haskell modules grouped into packages
 module Java2Haskell where
 
--- Java imports on the class level -> Haskell imports on the module level
+-- Java imports on the package level -> Haskell imports on the module level
+--   - Java imports only releases from refering by qualified names, you can still refer to anything in the classpath
+--   - Haskell imports are required in order to use modules, you can refer to only imported things
+--   - explicit module dependencies in Haskell
 import Data.Ix
 import Data.Time
 import Data.Maybe
+
+-- Java qualified names -> Haskell qualified imports
+--   - aliases for qualified names
 import qualified GoogleDirections as G
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as TLS
 
--- Java static imports on the class/interface members level -> Haskell imports on the function level
+-- Java imports on the class/method level -> Haskell imports on the type/function level
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 
 -- Java enum -> Haskell Algebraic Data Type - sum
 data Fuel = Diesel | Gas | LPG
 data Ticket = Ticket20Min | Ticket40Min | Ticket60Min
-data Person = Child | Adult
-
--- Java primitive -> Haskell ADT
--- Java boxing issues -> no such thing in Haskell
--- data Bool = True | False
+data Person = Adult | Child | SmallChild
 
 -- Java complex type -> Haskell ADT - product
 data Coordinates = Coordinates Float Float
 
+-- Java primitives -> Haskell ADT
+--   - all data as ADT in Haskell e.g. `data Bool = True | False`
+--   - Java boxing issues
+--   - no objects, only immutable values in Haskell
+--   - Java immutable value objects -> Haskell ADTs
+
 -- Java "beans" -> Haskell ADT - product with record syntax
-data Car = Car { fuel :: Fuel, fuelConsumptionLitresPerKilimeter :: Float }
+data Car = Car { fuel :: Fuel, fuelConsumptionLitresPerKilometer :: Float }
 
 -- Java getters -> Haskell functions
--- Java Lombok annotations -> Haskell functions for free
+--   - Java Lombok annotations
+--   - Haskell getter functions for free
 getCarFuel :: Car -> Fuel
 getCarFuel = fuel
 
-
--- Java setters -> Haskell functions, but pure ones, all values immutable, modified copy returned, original value intact
--- Java sort methods (in-routePointLocation, sorted copy returned, or both) -> Haskell persistent data types
+-- Java setters -> Haskell functions
+--  - pure functions, all values immutable, modified copy returned, original value left intact
+--  - Haskell persistent data types
+--  - how the sort methods work? in-place? sorted copy returned? both?
 setCarFuelConsumption :: Car -> Float -> Car
-setCarFuelConsumption car consumption = car { fuelConsumptionLitresPerKilimeter = consumption }
+setCarFuelConsumption car consumption = car { fuelConsumptionLitresPerKilometer = consumption }
 
--- Java immutable classes -> Haskell ADTs
-
--- Java polymorphism (having different "shapes") -> Haskell ADT - union types, low-level polymorhisms
+-- Java polymorphism (having different "shapes") -> Haskell ADT sum
+--   - low-level polymorhisms
+--   - union types
 data Transport = CarTransport Car | BikeTransport | PublicTransport
 
 data Location = AtCoordinates Coordinates | AtAddress String
 
-
--- Java inheritance (sharing common members) -> Haskell ADT product of sum, “composition over inheritance” enforced
-data Trip = Trip {
-  tripPersons :: [Person],
-  tripTransport :: Transport
+-- Java inheritance (sharing common members) -> Haskell ADT product of sum
+--   - composition over inheritance enforced
+--   - no inheritance in Haskell
+data Travellers = Travellers {
+  travelersPersons :: [Person],
+  travelersTransport :: Transport
 }
 
+-- C typedef -> Haskell type synonyms
+--   - non existing in Java
+--   - adds specific meaning to not specific types
+--   - not checked by the compiler
+type LengthKilometers = Float
+type FuelConsumptionLitresPerKilometer = Float
+type FuelConsumptionLitres = Float
+type Exception = String
+type DurationSeconds = NominalDiffTime
 
--- Java Object.equals method -> Haskell pattern mathing, sometimes...
-willNeedLPG :: Trip -> Bool
-willNeedLPG Trip{ tripTransport=CarTransport Car{ fuel = LPG } } = True
-willNeedLPG _ = False
+fuelConsumption :: LengthKilometers -> FuelConsumptionLitresPerKilometer -> FuelConsumptionLitres
+fuelConsumption km lpkm = lpkm * km
 
--- Java null/Optional -> Haskell Maybe
--- null as "billion dollar mistake"
-willUseCar :: Trip -> Maybe Car
-willUseCar Trip{ tripTransport=(CarTransport car) } = Just car
-willUseCar _ = Nothing
-
--- Java constants -> Haskell no argument functions
+-- Java constants -> Haskell values
+--   - every value is constant
 childTicketDiscount :: Float
 childTicketDiscount = 0.5
 
+smallChildTicketDiscount :: Float
+smallChildTicketDiscount = 1
+
 -- Java static methods without side effects -> Haskell functions
--- referentially transparent, can be equasionally reasoned, inlined, no side effects, no mutations
--- Java switch/case statement -> Haskell ADTs pattern matching
--- Switch/case considered harmful in Java? http://wiki.c2.com/?CaseStatementsConsideredHarmful
--- It's anyway messy: https://docs.oracle.com/javase/tutorial/java/nutsandbolts/switch.html
+--   - referential transparency, equasional reasoning, no side effects, no mutations
+-- Java switch/case statement, polymorhisms -> Haskell ADTs pattern matching
+--   - Java switch/case applicable only to some types: https://docs.oracle.com/javase/tutorial/java/nutsandbolts/switch.html
+--   - otherwise favour polymorhisms over witch/case? http://wiki.c2.com/?CaseStatementsConsideredHarmful
+--   - or use reflection...
+--   - Haskell pattern matching more powerful than that, many examples below
 ticketDiscount :: Person -> Float
 ticketDiscount Adult = 0
 ticketDiscount Child = childTicketDiscount
+ticketDiscount SmallChild = smallChildTicketDiscount
+
+-- Java switch/case statement over multiple parameters -> Haskell ADTs pattern matching
+--   - Java nested switch/case or polymorhisms with Visitor pattern
+--   - you better cover it with parameterized unit test!
+--   - expressiveness of pattern matching: wildcards
+canBeTransported :: Person -> Transport -> Bool
+canBeTransported Adult _ = True
+canBeTransported Child _ = True
+canBeTransported SmallChild (CarTransport _) = True
+canBeTransported SmallChild PublicTransport = True
+canBeTransported SmallChild _ = False
+
+-- Java if/then/else if/else -> Haskell guards
+isNonNegative :: Float -> Bool
+isNonNegative f
+  | f > 0 = True
+  | otherwise = False
 
 -- Java loops -> Haskell recursion
--- Java if/then/else -> Haskell guards
-ticketsNeeded :: NominalDiffTime -> [Ticket]
-ticketsNeeded diffTime
-  | diffTime > 40 * secondsInMinute = Ticket60Min:ticketsNeeded (diffTime - 60 * secondsInMinute)
-  | diffTime > 20 * secondsInMinute = Ticket40Min:ticketsNeeded (diffTime - 40 * secondsInMinute)
-  | diffTime > 0 = Ticket20Min:ticketsNeeded (diffTime - 20 * secondsInMinute)
+--   - no loops in Haskell
+--   - generally Java flow control statements map to Haskell functions
+ticketsNeeded :: DurationSeconds -> [Ticket]
+ticketsNeeded duration
+  | duration > 40 * secondsInMinute = Ticket60Min : ticketsNeeded (duration - 60 * secondsInMinute)
+  | duration > 20 * secondsInMinute = Ticket40Min : ticketsNeeded (duration - 40 * secondsInMinute)
+  | duration > 0 = Ticket20Min : ticketsNeeded (duration - 20 * secondsInMinute)
   | otherwise = []
     where
-      -- Java private class members -> Haskell where clause
+      -- Java private class members -> Haskell where section
       secondsInMinute = 60
 
--- C typedef (non existing in Java) -> Haskell type synonyms
-type RouteKilometers = Float -- adds specific meaning to not specific types, not checked by the compiler
-
 -- Java wrapper classes -> Haskell newtype
--- narrowing down possible values and functions
--- type with single constructor with single parameter
-newtype Cost = Cost Float -- adds specific meaning to not specific types, checked at compile time
+--   - narrowing down possible values and applicable functions
+--   - type with single constructor with single parameter
+--   - adds specific meaning to not generic types
+--   - checked by the compiler
+newtype Cost = Cost Float
 
-toCost :: Float -> Maybe Cost
-toCost f
-  | f >= 0 = Just (Cost f)
-  | otherwise = Nothing
+addCosts :: Cost -> Cost -> Cost
+addCosts (Cost a) (Cost b) = Cost (a + b)
 
-multiplyCost :: Cost -> Float -> Cost
-multiplyCost (Cost a) m = Cost (m * a)
+noCost :: Cost
+noCost = Cost 0
 
-applyDiscount :: Cost -> Float -> Cost
+-- Java exceptions -> Haskell Either
+--   - `data Either a b = Left a | Right b`
+--   - Right for constructing return value, Left for constructing exception (convention)
+-- Java ternary operator ?: -> Haskell if/then/else
+--   - then/else parts lazily evaluated as all expressions in Haskell
+toCost :: Float -> Either Exception Cost
+toCost f = if isNonNegative f then Right (Cost f) else Left "Cost cannot be negative"
+
+multiplyCost :: Cost -> Float -> Either Exception Cost
+multiplyCost (Cost a) m = toCost (m * a)
+
+applyDiscount :: Cost -> Float -> Either Exception Cost
 applyDiscount cost discount = multiplyCost cost (1 - discount)
 
--- Java design patterns -> Haskell high-level abstraction type classes
-instance Monoid Cost where
-  mempty = Cost 0
-  mappend (Cost a) (Cost b) = Cost (a + b)
-
--- Java: Stream.of(1,2,3).reduce(0,(a,b)->a+b); -> Haskell: mconcat
-noCost :: Cost
-noCost = mempty
-
-sumCost :: Cost -> Cost -> Cost
-sumCost = mappend
-
-sumCosts :: [Cost] -> Cost
-sumCosts = mconcat
-
-
--- Java interfaces -> Haskell type classes
--- Java implementating classes -> Haskell instances
--- Java polymorhisms (argument type-specific behavior) -> Haskell ad-hoc polymorhisms
-class HasCost t where
-  cost :: t -> Cost
-  -- Java default method implementations -> Haskell default function implementations
-  cost _ = noCost
-
--- Java open-closed principle, visitor pattern - instances defined separately to data type definition
-instance HasCost Fuel where
-  cost LPG = Cost 2.50
-  cost Diesel = Cost 5.60
-  cost Gas = Cost 5.40
-
-instance HasCost Ticket where
-  cost Ticket20Min = Cost 2.80
-  cost Ticket40Min = Cost 4
-  cost Ticket60Min = Cost 5
-
--- Java toString() -> Show typeclass, open/closed principle
+-- Java polymorhisms (argument type-specific behavior) -> Haskell typeclasses with ad-hoc polymorhisms
+--   - Java interfaces -> Haskell type classes
+--   - Java implementating classes -> Haskell instances
+--   - Java toString() -> Show typeclass
+--   - instances defined separately to data type definition
+--   - open/closed principle
 instance Show Cost where
   show (Cost a) = show a ++ " PLN"
 
@@ -199,121 +177,212 @@ instance Show Location where
   show (AtCoordinates (Coordinates latitude longitude)) = show latitude ++ "," ++ show longitude
   show (AtAddress address) = address
 
+class HasCost t where
+  cost :: t -> Either Exception Cost
+  -- Java default method implementations -> Haskell default function implementations
+  cost _ = Right noCost
 
+instance HasCost Fuel where
+  cost LPG = toCost 2.50
+  cost Diesel = toCost 5.60
+  cost Gas = toCost 5.40
 
+instance HasCost Ticket where
+  cost Ticket20Min = toCost 2.80
+  cost Ticket40Min = toCost 4
+  cost Ticket60Min = toCost 5
 
--- Java muliple parameter polymorhisms, Visitor design pattern -> Haskell multi-param typeclasses
+-- Most of Java design patterns -> Haskell functions or typeclasses with ad-hoc polymorhisms
+--   - Java Stream.reduce(a0, (a, b) -> a + b) -> Haskell Monoid, mconcat
+--   - typeclasses more expressive than interface, Monoid not expressible as interface
+instance Monoid Cost where
+  mempty = noCost
+  mappend = addCosts
+
+sumCosts :: [Cost] -> Cost
+sumCosts = mconcat
+
+-- Java impure computations -> Haskell Monads
+--   - in Haskell impure computation is expressed in types as `a -> m b` as opposed to pure computation as `a -> b`
+--   - e.g. `a -> Maybe b`, `a -> Either e b`, `a -> [b]`
+--   - `impure` doesn't necessarily mean `with side effects`
+--   - Monads allow for composition of impure computations: `(>>=) :: m a -> (a -> m b) -> m b`
+fuelCost :: Fuel -> FuelConsumptionLitresPerKilometer -> LengthKilometers -> Either Exception Cost
+fuelCost fuel fuelConsumptionLitresPerKilometer kms = do
+  fuelLitreCost <- cost fuel
+  fuelKmCost <- multiplyCost fuelLitreCost fuelConsumptionLitresPerKilometer
+  multiplyCost fuelKmCost kms
+
+-- Java producers -> Haskell Functors
+--   - Java generics variance PECS mnemonic - "producer - extends, consumer - super" - producer - (covariant) functor, consumer - (contravariant) cofunctor
+--   - producer examples: collections (e.g. Haskell list []), functions returning given type
+--   - Functors allow for mapping produced values `fmap :: (a -> b) -> f a -> f b`
+ticketCosts :: DurationSeconds -> [Either Exception Cost]
+ticketCosts duration = fmap cost (ticketsNeeded duration)
+
+-- Java bounded type parameters in interface definition -> classtype constraints in instance definition
+instance Monoid b => Monoid (Either a b) where
+  mempty = Right mempty
+  mappend (Left a) _ = Left a
+  mappend _ (Left a) = Left a
+  mappend (Right b1) (Right b2) = Right (mappend b1 b2)
+
+ticketsCost :: DurationSeconds -> Either Exception Cost
+ticketsCost duration = mconcat (ticketCosts duration)
+
+discountTicketsCost :: Person -> DurationSeconds -> Either Exception Cost
+discountTicketsCost person duration  = do
+  cost <- ticketsCost duration
+  applyDiscount cost (ticketDiscount person)
+
+-- Java muliple parameter polymorhisms via Visitor design pattern -> Haskell multi-param typeclasses
+--   - not supported directly in Java, possible on top of Java with Visitor pattern
+--   - supported by Haskell typeclasses
+--   - Haskell functional dependencies
 class GeneratesCost a b | a -> b where
-  generatedCost :: a -> b -> Cost
+  generatedCost :: a -> b -> Either Exception Cost
 
-instance GeneratesCost Person NominalDiffTime where
-  -- Java Bifunction -> Haskell function infix notation
-  generatedCost person diffTime = sumCosts (fmap cost (ticketsNeeded diffTime)) `applyDiscount` ticketDiscount person
+instance GeneratesCost Person DurationSeconds where
+  generatedCost = discountTicketsCost
 
-instance GeneratesCost Car RouteKilometers where
-  generatedCost (Car fuel fuelConsumptionLitresPerKilimeter) kms = cost fuel `multiplyCost` kms `multiplyCost` fuelConsumptionLitresPerKilimeter
+instance GeneratesCost Car LengthKilometers where
+  generatedCost (Car fuel fuelConsumptionLitresPerKilometer) = fuelCost fuel fuelConsumptionLitresPerKilometer
 
 data Leg = Leg {
-  legDiffTime :: NominalDiffTime,
-  legKilometers :: RouteKilometers
+  legDuration :: DurationSeconds,
+  legKilometers :: LengthKilometers
 }
 
-instance GeneratesCost Trip Leg where
-  generatedCost trip leg = case tripTransport trip of
+-- Java switch/case/polymorhisms -> Haskell pattern matching
+--   - Haskell case block
+--   - Java polymorhisms approach would introduce coupling of Transport with Leg because we would need method `Transport.generateCost(Leg): Cost`
+instance GeneratesCost Travellers Leg where
+  generatedCost travelers leg = case travelersTransport travelers of
     CarTransport car -> generatedCost car (legKilometers leg)
-    BikeTransport -> noCost
-    PublicTransport -> foldMap (`generatedCost` legDiffTime leg) (tripPersons trip)
+    BikeTransport -> Right noCost
+    PublicTransport -> foldMap (`generatedCost` legDuration leg) (travelersPersons travelers)
 
--- Java generics -> Haskell parametrized data types
-data Route a b = Route a [(a, b)]
+-- Java type parameters in class definition -> Haskell parametrized data types
+data RouteStop a = RouteStop {
+  routeStopLocation :: Location,
+  routeStopWhat :: a
+}
 
--- Java static methods with parameterized types -> Haskell parametric polymorphism
-routeSections :: Route a b -> [(a, a, b)]
-routeSections (Route a []) = []
-routeSections (Route a0 ((a1, b):rest)) = (a0, a1, b):routeSections (Route a1 rest)
+data Route a = Route {
+  routeBaseLocation :: Location,
+  routeStops :: [RouteStop a]
+}
 
-routeReturn :: Route a b -> Maybe (a, a)
-routeReturn (Route a []) = Nothing
-routeReturn (Route a [(an, _)]) = Just (a, an)
-routeReturn (Route a (_:rest)) = routeReturn (Route a rest)
+-- Java static methods with type parameters -> Haskell parametric polymorphism
+routeStopsCount :: Route a -> Int
+routeStopsCount route = length (routeStops route)
 
--- Java generics 'extends' -> Haskell typeclass constraints
-instance (Show a, Show b) => Show (Route a b) where
-  show route = sectionsString ++ returnString
-    where
-      sectionsString = foldMap (\(a1, a2, b) -> show a1 ++ "->" ++ show a2 ++ "\n" ++ show b ++ "\n") (routeSections route)
-      returnString = maybe "" (\(a1, a2) -> show a1 ++ "->" ++ show a2 ++ "\n") (routeReturn route)
+-- Java ? -> Haskell point-free style
+--   - composition of functions
+--   - useful in lambdas - fast creation of anonymous functions in place
+routeStopsCount' :: Route a -> Int
+routeStopsCount' = length . routeStops
 
--- TODO
--- Java ternary operator ?: -> Haskell if then else
--- Laziness - supplier, every expression is a supplier, if/else/case as function
--- https://docs.oracle.com/javase/specs/jls/se7/html/jls-15.html#jls-15.25
--- TODO: instance HasCost BikeTransport where
--- TODO: total functions - no nulls, no errors
--- TODO: Haskell case
--- TODO: Recursive data types
--- TODO: pattern matching
--- TODO: Java "Data Transfer Objects" -> Haskell one-liners, fosters interface segregation and reduces coupling
--- TODO
--- Java buider - Haskel type classes
--- http://blog.ezyang.com/2010/05/design-patterns-in-haskel/
--- TODO
--- Java Abstract Factory -> Haskell type class
--- class TripFactory t where
---   createTrip :: t -> Day -> Movement -> Trip
--- TODO
--- Java fromString()? -> Read typeclass
--- TODO
--- Java equals() -> Eq typeclass
--- TODO
+-- Java Object.equals() -> Haskell Eq typeclass
+instance Eq a => Eq (RouteStop a) where
+  stop1 == stop2 = routeStopWhat stop1 == routeStopWhat stop2
+
 -- Java Comparable -> Haskell Ord typeclass
--- Java Integer.MIN_VALUE etc. -> Haskell Bounded typeclass
--- TODO
--- Java Enum.valueOf() -> Haskell Read typeclass
--- Java Enum.name() -> Haskell Show typeclass
--- Java Enum.ordinal() -> Haskell Enums
--- TODO
--- Eq, Read, Show, Ord, Enum, Ix, Bounded
--- TODO: list comprehensions
+instance Ord a => Ord (RouteStop a) where
+  stop1 <= stop2 = routeStopWhat stop1 <= routeStopWhat stop2
+
+-- Java bounded type parameters in methods -> Haskell typeclass constraints in functions
+-- Java ? -> Haskell pattern matching argument capture (`@`)
+sortRoute :: Ord a => Route a -> Route a
+sortRoute route@Route{ routeStops=stops } = route{ routeStops=quicksort stops }
+
 -- Java “single responsibility principle” -> Haskell polymorphic functions - http://degoes.net/articles/insufficiently-polymorphic
-quicksort :: Ord a => [a] -> [a] -- comparing elements decoupled from constructing list, also more reusable
+--   - comparing elements decoupled from constructing list, higher reusability, less coupling
+-- Java ? -> Haskell list comprehensions
+quicksort :: Ord a => [a] -> [a]
 quicksort (x:xs) =
     let smallerSorted = quicksort [a | a <- xs, a <= x]
         biggerSorted = quicksort [a | a <- xs, a > x]
     in  smallerSorted ++ [x] ++ biggerSorted
 
-data RoutePoint = RoutePoint {
-  routePointLocation :: Location,
-  routePointTime :: UTCTime,
-  routePointCost :: Cost
-} deriving Show
+-- Java nested Function, BiFuction... in method parameters -> Haskell Higher order functions
+--   - Java: BiFunction<BiFunction<B, Location, Function<Location, B>>, BiFunction<B, A, B>, BiFunction<B, Route<B>, B>
+traverseRoute :: (b -> Location -> Location -> b) -> (b -> a -> b) -> b -> Route a -> b
+traverseRoute _ _ b (Route _ []) = b
+traverseRoute traverseMovement traverseStay b route@(Route baseLoc _) = doFoldRoute traverseMovement traverseStay b route baseLoc
+  where
+    doFoldRoute traverseMovement traverseStay b (Route baseLoc []) lastLoc = traverseMovement b lastLoc baseLoc
+    doFoldRoute traverseMovement traverseStay b (Route baseLoc (RouteStop loc a:rest)) lastLoc =
+      -- Java final values -> Haskell let/in expressions
+      let
+        b1 = traverseMovement b lastLoc loc
+        b2 = traverseStay b1 a
+      in doFoldRoute traverseMovement traverseStay b2 (Route baseLoc rest) loc
 
-data Stop = Stop {
-  stopLocation :: Location,
-  stopStayMinutes :: NominalDiffTime
-}
+-- Java lambdas -> Haskell lambdas
+instance Show a => Show (Route a) where
+  show = traverseRoute (\s loc1 loc2 -> s ++ show loc1 ++ " -> " ++ show loc2 ++ "\n") (\s a -> s ++ show a ++ "\n") ""
 
--- data Route = Route {
---   start :: RoutePoint,
---   transport' :: Transport,
---   stops :: [Stop]
--- }
+-- Java "Data Transfer Objects" -> Haskell one-liners
+--   - fosters interface segregation and reduces coupling
+-- Java default implementations of Object methods -> Haskell derivable instances of typeclasses
+--   - derivable Eq, Read, Show, Ord, Enum, Ix, Bounded
+data RoutePoint = RoutePoint { routePointTime :: UTCTime, routePointCost :: Cost } deriving Show
 
--- TODO
--- -> Haskell functor
-yyy' ::  Trip -> Stop -> RoutePoint -> Leg -> RoutePoint
-yyy' trip stop routePoint leg = let
-  cost = generatedCost trip leg `mappend` routePointCost routePoint
-  time = addUTCTime (legDiffTime leg + 60 * stopStayMinutes stop) (routePointTime routePoint)
-  in RoutePoint (stopLocation stop) time cost
+moveRoutePoint :: Travellers -> Leg -> RoutePoint -> Either Exception RoutePoint
+moveRoutePoint travelers leg routePoint@RoutePoint{ routePointCost=routePointCost, routePointTime=routePointTime } = case generatedCost travelers leg of
+  Left exc -> Left exc
+  Right legCost -> Right RoutePoint{ routePointCost = mappend legCost routePointCost, routePointTime = addUTCTime (legDuration leg) routePointTime }
 
-yyy ::  Trip -> Stop -> RoutePoint -> Maybe Leg -> Maybe RoutePoint
-yyy trip stop routePoint = fmap (yyy' trip stop routePoint)
+-- Java I/O -> Haskell IO Monad
+--   - a -> IO b ~= (RealWorld, a) -> (b, RealWorld)
+--   - a -> IO b ~= compute b basing on a and performing some I/O
+computeRoute :: HTTP.Manager -> String -> Travellers -> UTCTime -> Route DurationSeconds -> IO (Either Exception RoutePoint)
+computeRoute manager googleApiKey travelers startTime = traverseRoute traverseMovement traverseStop startRoutePoint
+  where
+    startRoutePoint :: IO (Either Exception RoutePoint)
+    startRoutePoint = return (Right RoutePoint{ routePointTime=startTime, routePointCost = noCost})
+    traverseMovement :: IO (Either Exception RoutePoint) -> Location -> Location -> IO (Either Exception RoutePoint)
+    traverseMovement ioerp loc1 loc2 = do
+      erp <- ioerp
+      case erp of
+        Left e -> return (Left e)
+        Right rp -> xxx manager googleApiKey travelers loc1 loc2 rp
+    traverseStop :: IO (Either Exception RoutePoint) -> DurationSeconds -> IO (Either Exception RoutePoint)
+    traverseStop ioerp durationSeconds = do
+      erp <- ioerp
+      case erp of
+        Left e -> return (Left e)
+        Right rp@RoutePoint{ routePointTime=time } -> return (Right rp{ routePointTime=addUTCTime durationSeconds time })
 
--- TODO
--- -> Haskell applicative functor
 
--- -> Haskell monad, do notation
+main :: IO ()
+main = do
+  manager <- HTTP.newManager TLS.tlsManagerSettings
+  apiKey <- readFile ".apiKey"
+  -- Java dependency injection -> Haskell partial function application
+  let computeRoute' = computeRoute manager apiKey
+  now <- getCurrentTime
+  let myFamily = [Adult, Adult, SmallChild]
+  let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
+  let myRoute = Route (AtAddress "Złota Podkowa Kraków") [RouteStop (AtAddress "Pawia 9 Kraków") (8 * 60 * 60), RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60), RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)]
+  print myRoute
+  lastRoutePoint <- computeRoute' Travellers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar } now myRoute
+  print lastRoutePoint
+
+xxx :: HTTP.Manager -> String -> Travellers -> Location -> Location -> RoutePoint -> IO (Either Exception RoutePoint)
+xxx manager googleApiKey travelers loc1 loc2 routePoint = do
+  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (travelersTransport travelers)) (show loc1) (show loc2) ((round . utcTimeToPOSIXSeconds) (routePointTime routePoint))
+  let mleg = foo mGoogleDirectionsResponse
+  case mleg of
+    Nothing -> return (Left "Cannot parse GoogleDirections response")
+    Just leg -> return (moveRoutePoint travelers leg routePoint)
+    where
+      transport2Mode :: Transport -> G.Mode
+      transport2Mode (CarTransport _) = G.Driving
+      transport2Mode BikeTransport = G.Bicycling
+      transport2Mode PublicTransport  = G.Transit
+
 foo :: Maybe G.GoogleDirectionsResponse -> Maybe Leg
 foo mGoogleDirectionsResponse = do
   response <- mGoogleDirectionsResponse
@@ -321,47 +390,4 @@ foo mGoogleDirectionsResponse = do
   firstLeg <- listToMaybe (G.legs firstRoute)
   let diffTimeSeconds = (fromInteger . G.value . G.duration) firstLeg
   let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
-  return Leg{ legDiffTime=diffTimeSeconds, legKilometers=distanceMeters/1000 }
-
-
-xxx :: HTTP.Manager -> String -> Trip -> Stop -> RoutePoint -> IO (Maybe RoutePoint)
-xxx manager googleApiKey trip stop routePoint = do
-  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (tripTransport trip)) (show (routePointLocation routePoint)) (show (stopLocation stop)) ((round . utcTimeToPOSIXSeconds) (routePointTime routePoint))
-  return $ yyy trip stop routePoint (foo mGoogleDirectionsResponse)
-    where
-      transport2Mode :: Transport -> G.Mode
-      transport2Mode (CarTransport _) = G.Driving
-      transport2Mode BikeTransport = G.Bicycling
-      transport2Mode PublicTransport  = G.Transit
-
--- Java dependency injection -> Haskell partial function application
-
-main :: IO ()
-main = do
-  manager <- HTTP.newManager TLS.tlsManagerSettings
-  apiKey <- readFile ".apiKey"
-  let xxx' = fold''' manager apiKey
-  now <- getCurrentTime
-  let family = [Adult, Adult, Child]
-  let carTransport = CarTransport Car{ fuel = LPG, fuelConsumptionLitresPerKilimeter = 0.11 }
-  let route = Route (AtAddress "Złota Podkowa Kraków") [(AtAddress "Pawia 9 Kraków", 8 * 60), (AtCoordinates (Coordinates 50.067938 19.901295), 60), (AtAddress "Lindego 1C, Kraków", 30)]
-  stop <- xxx' Trip{ tripPersons=family, tripTransport=carTransport } (AtAddress "Złota Podkowa Kraków") now [
-    Stop{ stopLocation = AtAddress "Pawia 9 Kraków", stopStayMinutes = 8 * 60},
-    Stop{ stopLocation = AtCoordinates (Coordinates 50.067938 19.901295), stopStayMinutes = 1 * 60},
-    Stop{ stopLocation = AtAddress "Lindego 1C, Kraków", stopStayMinutes = 30}]
-  print stop
-
--- Java iteration over collection -> Haskell fold
-fold''' :: HTTP.Manager -> String -> Trip -> Location -> UTCTime -> [Stop] -> IO (Maybe RoutePoint)
-fold''' manager googleApiKey trip startLocation startTime = foldl appendStop startRoutePoint
-  where
-    startRoutePoint :: IO (Maybe RoutePoint)
-    startRoutePoint = return $ Just RoutePoint{ routePointTime=startTime, routePointLocation = startLocation, routePointCost = noCost}
-    appendStop :: IO (Maybe RoutePoint) -> Stop -> IO (Maybe RoutePoint)
-    appendStop iomrp stop = do
-      mrp <- iomrp
-      case mrp of
-        Nothing -> return Nothing
-        Just rp -> xxx manager googleApiKey trip stop rp
-
--- http://cheatsheet.codeslower.com/CheatSheet.pdf
+  return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
