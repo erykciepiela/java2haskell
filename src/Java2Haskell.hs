@@ -30,9 +30,9 @@ import qualified Network.HTTP.Client.TLS as TLS
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 
 -- Java enum -> Haskell Algebraic Data Type - sum
-data Fuel = Diesel | Gas | LPG
+data Fuel = Diesel | Gas | LPG deriving Show
 data Ticket = Ticket20Min | Ticket40Min | Ticket60Min
-data Person = Adult | Child | SmallChild
+data Person = Adult | Child | SmallChild deriving Show
 
 -- Java complex type -> Haskell ADT - product
 data Coordinates = Coordinates Float Float
@@ -44,7 +44,7 @@ data Coordinates = Coordinates Float Float
 --   - Java immutable value objects -> Haskell ADTs
 
 -- Java "beans" -> Haskell ADT - product with record syntax
-data Car = Car { fuel :: Fuel, fuelConsumptionLitresPerKilometer :: Float }
+data Car = Car { fuel :: Fuel, fuelConsumptionLitresPerKilometer :: Float } deriving Show
 
 -- Java getters -> Haskell functions
 --   - Java Lombok annotations
@@ -62,7 +62,7 @@ setCarFuelConsumption car consumption = car { fuelConsumptionLitresPerKilometer 
 -- Java polymorphism (having different "shapes") -> Haskell ADT sum
 --   - low-level polymorhisms
 --   - union types
-data Transport = CarTransport Car | BikeTransport | PublicTransport
+data Transport = CarTransport Car | BikeTransport | PublicTransport deriving Show
 
 data Location = AtCoordinates Coordinates | AtAddress String
 
@@ -70,9 +70,9 @@ data Location = AtCoordinates Coordinates | AtAddress String
 --   - composition over inheritance enforced
 --   - no inheritance in Haskell
 data Travelers = Travelers {
-  travelersPersons :: [Person],
-  travelersTransport :: Transport
-}
+  persons :: [Person],
+  transport :: Transport
+} deriving Show
 
 -- C typedef -> Haskell type synonyms
 --   - non existing in Java
@@ -257,10 +257,10 @@ data Leg = Leg {
 --   - Haskell case block
 --   - Java polymorhisms approach would introduce coupling of Transport with Leg because we would need method `Transport.generateCost(Leg): Cost`
 instance GeneratesCost Travelers Leg where
-  generatedCost travelers leg = case travelersTransport travelers of
+  generatedCost travelers leg = case transport travelers of
     CarTransport car -> generatedCost car (legKilometers leg)
     BikeTransport -> Right noCost
-    PublicTransport -> foldMap (`generatedCost` legDuration leg) (travelersPersons travelers)
+    PublicTransport -> foldMap (`generatedCost` legDuration leg) (persons travelers)
 
 -- Java type parameters in class definition -> Haskell parametrized data types
 data RouteStop a = RouteStop {
@@ -321,7 +321,7 @@ traverseRoute traverseMovement traverseStay b route@(Route baseLoc _) = doFoldRo
 
 -- Java lambdas -> Haskell lambdas
 instance Show a => Show (Route a) where
-  show = traverseRoute (\s loc1 loc2 -> s ++ show loc1 ++ " -> " ++ show loc2 ++ "\n") (\s a -> s ++ show a ++ "\n") ""
+  show = traverseRoute (\s loc1 loc2 -> s ++ show loc1 ++ " -> " ++ show loc2 ++ ", ") (\s a -> s ++ show a ++ ",") ""
 
 -- Java "Data Transfer Objects" -> Haskell one-liners
 --   - fosters interface segregation and reduces coupling
@@ -329,17 +329,23 @@ instance Show a => Show (Route a) where
 --   - derivable Eq, Read, Show, Ord, Enum, Ix, Bounded
 data RouteSummary = RouteSummary { routeSummaryTime :: UTCTime, routeSummaryCost :: Cost } deriving Show
 
+data Journey = Journey {
+  travelers :: Travelers,
+  startTime :: UTCTime,
+  route :: Route DurationSeconds
+} deriving Show
+
 updateRouteSummary :: Travelers -> Leg -> RouteSummary -> Either Exception RouteSummary
 updateRouteSummary travelers leg routeSummary@RouteSummary{ routeSummaryCost=routeSummaryCost, routeSummaryTime=routeSummaryTime } = case generatedCost travelers leg of
-  Left exc -> Left exc
   Right legCost -> Right RouteSummary{ routeSummaryCost = mappend legCost routeSummaryCost, routeSummaryTime = addUTCTime (legDuration leg) routeSummaryTime }
+  Left exc -> Left exc
 
 -- Java I/O -> Haskell IO Monad
 --   - a -> IO b ~= (RealWorld, a) -> (b, RealWorld)
 --   - a -> IO b ~= compute b basing on a and performing some I/O
 updateRouteSummaryWithGoogleDirections :: HTTP.Manager -> G.ApiKey -> Travelers -> Location -> Location -> RouteSummary -> IO (Either Exception RouteSummary)
 updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 routeSummary = do
-  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (travelersTransport travelers)) (show loc1) (show loc2) ((round . utcTimeToPOSIXSeconds) (routeSummaryTime routeSummary))
+  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (transport travelers)) (show loc1) (show loc2) ((round . utcTimeToPOSIXSeconds) (routeSummaryTime routeSummary))
   return $ case extractLeg mGoogleDirectionsResponse of
     Nothing -> Left "Cannot extract data from GoogleDirections response"
     Just leg -> updateRouteSummary travelers leg routeSummary
@@ -358,16 +364,16 @@ updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 
         let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
         return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
 
-computeRouteSummary :: HTTP.Manager -> G.ApiKey -> Travelers -> UTCTime -> Route DurationSeconds -> IO (Either Exception RouteSummary)
-computeRouteSummary manager googleApiKey travelers startTime = traverseRoute traverseMovement traverseStop startRouteSummary
+computeJourneySummary :: HTTP.Manager -> G.ApiKey -> Journey -> IO (Either Exception RouteSummary)
+computeJourneySummary manager googleApiKey journey = traverseRoute traverseMovement traverseStop startRouteSummary (route journey)
   where
     startRouteSummary :: IO (Either Exception RouteSummary)
-    startRouteSummary = return $ Right RouteSummary{ routeSummaryTime=startTime, routeSummaryCost = noCost }
+    startRouteSummary = return $ Right RouteSummary{ routeSummaryTime=startTime journey, routeSummaryCost = noCost }
     traverseMovement :: IO (Either Exception RouteSummary) -> Location -> Location -> IO (Either Exception RouteSummary)
     traverseMovement ioers loc1 loc2 = do
       ers <- ioers
       case ers of
-        Right rs -> updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 rs
+        Right rs -> updateRouteSummaryWithGoogleDirections manager googleApiKey (travelers journey) loc1 loc2 rs
         l -> return l
     traverseStop :: IO (Either Exception RouteSummary) -> DurationSeconds -> IO (Either Exception RouteSummary)
     traverseStop ioers durationSeconds = do
@@ -385,11 +391,25 @@ main = do
   googleApiKey <- readFile ".apiKey"
   now <- getCurrentTime
   -- Java dependency injection -> Haskell partial function application
-  let computeRouteSummary' = computeRouteSummary manager googleApiKey
-  let myFamily = [Adult, Adult]
-  let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
-  let myTravelers = Travelers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar }
-  let myRoute = Route (AtAddress "Złota Podkowa Kraków") [RouteStop (AtAddress "Pawia 9 Kraków") (8 * 60 * 60), RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60), RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)]
-  print myRoute
-  lastRouteSummary <- computeRouteSummary' myTravelers now myRoute
-  print lastRouteSummary
+  let computeJourneySummary' = computeJourneySummary manager googleApiKey
+  -- Java JSON bindings -> Haskell ADTs
+  --   - Show typeclass to serialize
+  --   - Read typeclass to deserialize
+  let journey = Journey {
+    travelers = Travelers {
+      persons = [Adult, Adult],
+      transport = CarTransport Car {
+        fuel = LPG,
+        fuelConsumptionLitresPerKilometer = 0.11
+      }
+    },
+    startTime = now,
+    route = Route (AtAddress "Złota Podkowa, Kraków") [
+      RouteStop (AtAddress "Pawia 9, Kraków") (8 * 60 * 60),
+      RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60),
+      RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)
+    ]
+  }
+  putStrLn $ "Journey:\n" ++ show journey
+  eRouteSummary <- computeJourneySummary' journey
+  putStrLn $ either (\e -> "Exception:\n" ++ show e) (\routeSummary -> "Success:\n" ++ show routeSummary) eRouteSummary
