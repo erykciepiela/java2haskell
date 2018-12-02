@@ -376,13 +376,16 @@ computeRouteSummary manager googleApiKey travelers startTime = traverseRoute tra
         Right rs@RouteSummary{ routeSummaryTime=time } -> Right rs{ routeSummaryTime=addUTCTime durationSeconds time }
         l -> l
 
+-- Java `public static void main()` -> Haskell module main function
+--   - Haskell program is a value of type `IO ()` ~ it does some I/O and returns unit
 main :: IO ()
 main = do
+  -- Java I/O -> Haskell IO Monad
   manager <- HTTP.newManager TLS.tlsManagerSettings
   googleApiKey <- readFile ".apiKey"
+  now <- getCurrentTime
   -- Java dependency injection -> Haskell partial function application
   let computeRouteSummary' = computeRouteSummary manager googleApiKey
-  now <- getCurrentTime
   let myFamily = [Adult, Adult, SmallChild]
   let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
   let myTravelers = Travelers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar }
