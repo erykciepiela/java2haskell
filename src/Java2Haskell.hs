@@ -364,8 +364,8 @@ updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 
         let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
         return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
 
-computeJourneySummary :: HTTP.Manager -> G.ApiKey -> Journey -> IO (Either Exception RouteSummary)
-computeJourneySummary manager googleApiKey journey = traverseRoute traverseMovement traverseStop startRouteSummary (route journey)
+computeJourneySummaryWithGoogleDirections :: HTTP.Manager -> G.ApiKey -> Journey -> IO (Either Exception RouteSummary)
+computeJourneySummaryWithGoogleDirections manager googleApiKey journey = traverseRoute traverseMovement traverseStop startRouteSummary (route journey)
   where
     startRouteSummary :: IO (Either Exception RouteSummary)
     startRouteSummary = return $ Right RouteSummary{ routeSummaryTime=startTime journey, routeSummaryCost = noCost }
@@ -391,7 +391,7 @@ main = do
   googleApiKey <- readFile ".apiKey"
   now <- getCurrentTime
   -- Java dependency injection -> Haskell partial function application
-  let computeJourneySummary' = computeJourneySummary manager googleApiKey
+  let computeJourneySummary = computeJourneySummaryWithGoogleDirections manager googleApiKey
   -- Java JSON bindings -> Haskell ADTs
   --   - Show typeclass to serialize
   --   - Read typeclass to deserialize
@@ -410,6 +410,6 @@ main = do
       RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)
     ]
   }
-  putStrLn $ "Journey:\n" ++ show journey
-  eRouteSummary <- computeJourneySummary' journey
+  putStrLn $ "Input:\n" ++ show journey
+  eRouteSummary <- computeJourneySummary journey
   putStrLn $ either (\e -> "Exception:\n" ++ show e) (\routeSummary -> "Success:\n" ++ show routeSummary) eRouteSummary
