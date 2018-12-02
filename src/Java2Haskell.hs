@@ -121,7 +121,7 @@ canBeTransported SmallChild _ = False
 -- Java if/then/else if/else -> Haskell guards
 isNonNegative :: Float -> Bool
 isNonNegative f
-  | f > 0 = True
+  | f >= 0 = True
   | otherwise = False
 
 -- Java loops -> Haskell recursion
@@ -386,7 +386,7 @@ main = do
   now <- getCurrentTime
   -- Java dependency injection -> Haskell partial function application
   let computeRouteSummary' = computeRouteSummary manager googleApiKey
-  let myFamily = [Adult, Adult, SmallChild]
+  let myFamily = [Adult, Adult]
   let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
   let myTravelers = Travelers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar }
   let myRoute = Route (AtAddress "Złota Podkowa Kraków") [RouteStop (AtAddress "Pawia 9 Kraków") (8 * 60 * 60), RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60), RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)]
