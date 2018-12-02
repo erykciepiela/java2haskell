@@ -69,7 +69,7 @@ data Location = AtCoordinates Coordinates | AtAddress String
 -- Java inheritance (sharing common members) -> Haskell ADT product of sum
 --   - composition over inheritance enforced
 --   - no inheritance in Haskell
-data Travellers = Travellers {
+data Travelers = Travelers {
   travelersPersons :: [Person],
   travelersTransport :: Transport
 }
@@ -256,7 +256,7 @@ data Leg = Leg {
 -- Java switch/case/polymorhisms -> Haskell pattern matching
 --   - Haskell case block
 --   - Java polymorhisms approach would introduce coupling of Transport with Leg because we would need method `Transport.generateCost(Leg): Cost`
-instance GeneratesCost Travellers Leg where
+instance GeneratesCost Travelers Leg where
   generatedCost travelers leg = case travelersTransport travelers of
     CarTransport car -> generatedCost car (legKilometers leg)
     BikeTransport -> Right noCost
@@ -327,67 +327,66 @@ instance Show a => Show (Route a) where
 --   - fosters interface segregation and reduces coupling
 -- Java default implementations of Object methods -> Haskell derivable instances of typeclasses
 --   - derivable Eq, Read, Show, Ord, Enum, Ix, Bounded
-data RoutePoint = RoutePoint { routePointTime :: UTCTime, routePointCost :: Cost } deriving Show
+data RouteSummary = RouteSummary { routeSummaryTime :: UTCTime, routeSummaryCost :: Cost } deriving Show
 
-moveRoutePoint :: Travellers -> Leg -> RoutePoint -> Either Exception RoutePoint
-moveRoutePoint travelers leg routePoint@RoutePoint{ routePointCost=routePointCost, routePointTime=routePointTime } = case generatedCost travelers leg of
+updateRouteSummary :: Travelers -> Leg -> RouteSummary -> Either Exception RouteSummary
+updateRouteSummary travelers leg routeSummary@RouteSummary{ routeSummaryCost=routeSummaryCost, routeSummaryTime=routeSummaryTime } = case generatedCost travelers leg of
   Left exc -> Left exc
-  Right legCost -> Right RoutePoint{ routePointCost = mappend legCost routePointCost, routePointTime = addUTCTime (legDuration leg) routePointTime }
+  Right legCost -> Right RouteSummary{ routeSummaryCost = mappend legCost routeSummaryCost, routeSummaryTime = addUTCTime (legDuration leg) routeSummaryTime }
 
 -- Java I/O -> Haskell IO Monad
 --   - a -> IO b ~= (RealWorld, a) -> (b, RealWorld)
 --   - a -> IO b ~= compute b basing on a and performing some I/O
-computeRoute :: HTTP.Manager -> String -> Travellers -> UTCTime -> Route DurationSeconds -> IO (Either Exception RoutePoint)
-computeRoute manager googleApiKey travelers startTime = traverseRoute traverseMovement traverseStop startRoutePoint
-  where
-    startRoutePoint :: IO (Either Exception RoutePoint)
-    startRoutePoint = return (Right RoutePoint{ routePointTime=startTime, routePointCost = noCost})
-    traverseMovement :: IO (Either Exception RoutePoint) -> Location -> Location -> IO (Either Exception RoutePoint)
-    traverseMovement ioerp loc1 loc2 = do
-      erp <- ioerp
-      case erp of
-        Left e -> return (Left e)
-        Right rp -> xxx manager googleApiKey travelers loc1 loc2 rp
-    traverseStop :: IO (Either Exception RoutePoint) -> DurationSeconds -> IO (Either Exception RoutePoint)
-    traverseStop ioerp durationSeconds = do
-      erp <- ioerp
-      case erp of
-        Left e -> return (Left e)
-        Right rp@RoutePoint{ routePointTime=time } -> return (Right rp{ routePointTime=addUTCTime durationSeconds time })
-
-
-main :: IO ()
-main = do
-  manager <- HTTP.newManager TLS.tlsManagerSettings
-  apiKey <- readFile ".apiKey"
-  -- Java dependency injection -> Haskell partial function application
-  let computeRoute' = computeRoute manager apiKey
-  now <- getCurrentTime
-  let myFamily = [Adult, Adult, SmallChild]
-  let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
-  let myRoute = Route (AtAddress "Złota Podkowa Kraków") [RouteStop (AtAddress "Pawia 9 Kraków") (8 * 60 * 60), RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60), RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)]
-  print myRoute
-  lastRoutePoint <- computeRoute' Travellers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar } now myRoute
-  print lastRoutePoint
-
-xxx :: HTTP.Manager -> String -> Travellers -> Location -> Location -> RoutePoint -> IO (Either Exception RoutePoint)
-xxx manager googleApiKey travelers loc1 loc2 routePoint = do
-  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (travelersTransport travelers)) (show loc1) (show loc2) ((round . utcTimeToPOSIXSeconds) (routePointTime routePoint))
-  let mleg = foo mGoogleDirectionsResponse
-  case mleg of
-    Nothing -> return (Left "Cannot parse GoogleDirections response")
-    Just leg -> return (moveRoutePoint travelers leg routePoint)
+updateRouteSummaryWithGoogleDirections :: HTTP.Manager -> G.ApiKey -> Travelers -> Location -> Location -> RouteSummary -> IO (Either Exception RouteSummary)
+updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 routeSummary = do
+  mGoogleDirectionsResponse <- G.getGoogleDirections manager googleApiKey (transport2Mode (travelersTransport travelers)) (show loc1) (show loc2) ((round . utcTimeToPOSIXSeconds) (routeSummaryTime routeSummary))
+  return $ case extractLeg mGoogleDirectionsResponse of
+    Nothing -> Left "Cannot extract data from GoogleDirections response"
+    Just leg -> updateRouteSummary travelers leg routeSummary
     where
       transport2Mode :: Transport -> G.Mode
       transport2Mode (CarTransport _) = G.Driving
       transport2Mode BikeTransport = G.Bicycling
       transport2Mode PublicTransport  = G.Transit
+      -- Maybe Monad
+      extractLeg :: Maybe G.GoogleDirectionsResponse -> Maybe Leg
+      extractLeg mGoogleDirectionsResponse = do
+        response <- mGoogleDirectionsResponse
+        firstRoute <- listToMaybe (G.routes response)
+        firstLeg <- listToMaybe (G.legs firstRoute)
+        let diffTimeSeconds = (fromInteger . G.value . G.duration) firstLeg
+        let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
+        return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
 
-foo :: Maybe G.GoogleDirectionsResponse -> Maybe Leg
-foo mGoogleDirectionsResponse = do
-  response <- mGoogleDirectionsResponse
-  firstRoute <- listToMaybe (G.routes response)
-  firstLeg <- listToMaybe (G.legs firstRoute)
-  let diffTimeSeconds = (fromInteger . G.value . G.duration) firstLeg
-  let distanceMeters = (fromInteger . G.value . G.distance) firstLeg
-  return Leg{ legDuration=diffTimeSeconds, legKilometers=distanceMeters/1000 }
+computeRouteSummary :: HTTP.Manager -> G.ApiKey -> Travelers -> UTCTime -> Route DurationSeconds -> IO (Either Exception RouteSummary)
+computeRouteSummary manager googleApiKey travelers startTime = traverseRoute traverseMovement traverseStop startRouteSummary
+  where
+    startRouteSummary :: IO (Either Exception RouteSummary)
+    startRouteSummary = return $ Right RouteSummary{ routeSummaryTime=startTime, routeSummaryCost = noCost }
+    traverseMovement :: IO (Either Exception RouteSummary) -> Location -> Location -> IO (Either Exception RouteSummary)
+    traverseMovement ioers loc1 loc2 = do
+      ers <- ioers
+      case ers of
+        Right rs -> updateRouteSummaryWithGoogleDirections manager googleApiKey travelers loc1 loc2 rs
+        l -> return l
+    traverseStop :: IO (Either Exception RouteSummary) -> DurationSeconds -> IO (Either Exception RouteSummary)
+    traverseStop ioers durationSeconds = do
+      ers <- ioers
+      return $ case ers of
+        Right rs@RouteSummary{ routeSummaryTime=time } -> Right rs{ routeSummaryTime=addUTCTime durationSeconds time }
+        l -> l
+
+main :: IO ()
+main = do
+  manager <- HTTP.newManager TLS.tlsManagerSettings
+  googleApiKey <- readFile ".apiKey"
+  -- Java dependency injection -> Haskell partial function application
+  let computeRouteSummary' = computeRouteSummary manager googleApiKey
+  now <- getCurrentTime
+  let myFamily = [Adult, Adult, SmallChild]
+  let myCar = Car{ fuel = LPG, fuelConsumptionLitresPerKilometer = 0.11 }
+  let myTravelers = Travelers{ travelersPersons = myFamily, travelersTransport = CarTransport myCar }
+  let myRoute = Route (AtAddress "Złota Podkowa Kraków") [RouteStop (AtAddress "Pawia 9 Kraków") (8 * 60 * 60), RouteStop (AtCoordinates (Coordinates 50.067938 19.901295)) (60 * 60), RouteStop (AtAddress "Lindego 1C, Kraków") (30 * 60)]
+  print myRoute
+  lastRouteSummary <- computeRouteSummary' myTravelers now myRoute
+  print lastRouteSummary

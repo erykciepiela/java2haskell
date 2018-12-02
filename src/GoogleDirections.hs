@@ -33,6 +33,8 @@ instance FromJSON Leg
 instance FromJSON Route
 instance FromJSON TextValue
 
+type ApiKey = String
+
 data Mode = Driving | Bicycling | Transit
 
 instance Show Mode where
@@ -40,11 +42,11 @@ instance Show Mode where
   show Bicycling = "bicycling"
   show Transit = "transit"
 
-getGoogleDirections :: Manager -> String -> Mode -> String -> String -> Int -> IO (Maybe GoogleDirectionsResponse)
+getGoogleDirections :: Manager -> ApiKey -> Mode -> String -> String -> Int -> IO (Maybe GoogleDirectionsResponse)
 getGoogleDirections manager key mode origin destination departureTime = do
   resp <- httpsGet manager (googleDirectionsUrl mode origin destination departureTime key)
   return $ decode resp
   where
-    googleDirectionsUrl :: Mode -> String -> String -> Int -> String -> String
+    googleDirectionsUrl :: Mode -> String -> String -> Int -> String -> ApiKey
     googleDirectionsUrl mode origin destination departureTime key = urlBase ++ "?mode=" ++ show mode ++ "&origin=" ++ origin ++ "&destination=" ++ destination ++ "&departure_time=" ++ show departureTime ++ "&key=" ++ key
     urlBase = "https://maps.googleapis.com/maps/api/directions/json"
