@@ -6,3 +6,7 @@ This project is the base for the talk "Traveling from Java to Haskell".
 
 With the map provided in the talk you will be able to translate the ways you “think in Java” to concepts used in Haskell, entirely by code examples.
 The talk is dedicated to Java developers and Haskell newbies.
+
+This project is a real-world yet simple Haskell application for computing city trip route schedule and cost basing on:
+  - Google Directions service
+  - Cost of means of transport
