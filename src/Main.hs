@@ -336,9 +336,8 @@ data Journey = Journey {
 } deriving Show
 
 updateRouteSummary :: Travelers -> Leg -> RouteSummary -> Either Exception RouteSummary
-updateRouteSummary travelers leg routeSummary@RouteSummary{ routeSummaryCost=routeSummaryCost, routeSummaryTime=routeSummaryTime } = case generatedCost travelers leg of
-  Right legCost -> Right RouteSummary{ routeSummaryCost = mappend legCost routeSummaryCost, routeSummaryTime = addUTCTime (legSeconds leg) routeSummaryTime }
-  Left exc -> Left exc
+updateRouteSummary travelers leg routeSummary@RouteSummary{ routeSummaryCost=cost, routeSummaryTime=time }
+  = fmap (\legCost -> RouteSummary{ routeSummaryCost = mappend legCost cost, routeSummaryTime = addUTCTime (legSeconds leg) time }) (generatedCost travelers leg)
 
 -- Java I/O -> Haskell IO Monad
 --   - a -> IO b ~= (RealWorld, a) -> (b, RealWorld)

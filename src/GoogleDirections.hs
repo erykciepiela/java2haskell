@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, FlexibleInstances, ScopedTypeVariables,
-    MultiParamTypeClasses, FlexibleContexts, GADTs, DeriveGeneric #-}
+    MultiParamTypeClasses, FlexibleContexts, GADTs, DeriveGeneric, DeriveAnyClass #-}
 module GoogleDirections where
 
 import Data.Aeson
@@ -7,31 +7,25 @@ import GHC.Generics
 import Https
 import Network.HTTP.Client
 
-data GoogleDirectionsResponse = GoogleDirectionsResponse {
+newtype GoogleDirectionsResponse = GoogleDirectionsResponse {
   routes :: [Route]
-} deriving (Generic, Show)
+} deriving (Generic, Show, FromJSON)
 
-instance FromJSON GoogleDirectionsResponse
-
-data Route = Route {
+newtype Route = Route {
   legs :: [Leg]
-} deriving (Generic, Show)
+} deriving (Generic, Show, FromJSON)
 
 data Leg = Leg {
   start_address :: String,
   end_address :: String,
   distance :: TextValue,
   duration :: TextValue
-} deriving (Generic, Show)
+} deriving (Generic, Show, FromJSON)
 
 data TextValue = TextValue {
   text :: String,
   value :: Integer
-} deriving (Generic, Show)
-
-instance FromJSON Leg
-instance FromJSON Route
-instance FromJSON TextValue
+} deriving (Generic, Show, FromJSON)
 
 type ApiKey = String
 
