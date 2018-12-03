@@ -3,8 +3,9 @@
 -- Java Specification Requests -> Haskell language extensions
 --   - Haskell 2010 specification of base language
 --   - supplemented with language extensions
-{-# LANGUAGE RankNTypes, FlexibleInstances, ScopedTypeVariables,
-    MultiParamTypeClasses, FlexibleContexts, GADTs, FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 -- Java package -> Haskell module
 --   - Java package is a directory, Haskell module is a single *.hs file
@@ -277,7 +278,7 @@ data Route a = Route {
 routeStopsCount :: Route a -> Int
 routeStopsCount route = length (routeStops route)
 
--- Java ? -> Haskell point-free style
+-- Java Function.compose() -> Haskell point-free style
 --   - composition of functions
 --   - useful in lambdas - fast creation of anonymous functions in place
 routeStopsCount' :: Route a -> Int

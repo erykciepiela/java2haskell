@@ -1,5 +1,6 @@
-{-# LANGUAGE RankNTypes, FlexibleInstances, ScopedTypeVariables,
-    MultiParamTypeClasses, FlexibleContexts, GADTs, DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module GoogleDirections where
 
 import Data.Aeson
