@@ -5,7 +5,6 @@
 --   - supplemented with language extensions
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 
 -- Java package -> Haskell module
 --   - Java package is a directory, Haskell module is a single *.hs file
@@ -100,7 +99,7 @@ smallChildTicketDiscount = 1
 --   - referential transparency, equasional reasoning, no side effects, no mutations
 -- Java switch/case statement, polymorhisms -> Haskell ADTs pattern matching
 --   - Java switch/case applicable only to some types: https://docs.oracle.com/javase/tutorial/java/nutsandbolts/switch.html
---   - otherwise favour polymorhisms over witch/case? http://wiki.c2.com/?CaseStatementsConsideredHarmful
+--   - otherwise favour polymorhisms over switch/case? http://wiki.c2.com/?CaseStatementsConsideredHarmful
 --   - or use reflection...
 --   - Haskell pattern matching more powerful than that, many examples below
 ticketDiscount :: Person -> Float
@@ -239,8 +238,7 @@ discountTicketsCost person duration  = do
 -- Java muliple parameter polymorhisms via Visitor design pattern -> Haskell multi-param typeclasses
 --   - not supported directly in Java, possible on top of Java with Visitor pattern
 --   - supported by Haskell typeclasses
---   - Haskell functional dependencies
-class GeneratesCost a b | a -> b where
+class GeneratesCost a b where
   generatedCost :: a -> b -> Either Exception Cost
 
 instance GeneratesCost Person DurationSeconds where
