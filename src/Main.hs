@@ -32,7 +32,7 @@ import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 -- Java enum -> Haskell Algebraic Data Type - sum
 data Fuel = Diesel | Gas | LPG deriving Show -- `deriving` will be explained later
 data Ticket = Ticket20Min | Ticket40Min | Ticket60Min
-data Person = Adult | Child | SmallChild deriving Show
+data Person = Adult | Child | Infant deriving Show
 
 -- Java complex type -> Haskell ADT - product
 data Coordinates = Coordinates Float Float
@@ -105,7 +105,7 @@ smallChildTicketDiscount = 1
 ticketDiscount :: Person -> Float
 ticketDiscount Adult = 0
 ticketDiscount Child = childTicketDiscount
-ticketDiscount SmallChild = smallChildTicketDiscount
+ticketDiscount Infant = smallChildTicketDiscount
 
 -- Java switch/case statement over multiple parameters -> Haskell ADTs pattern matching
 --   - Java nested switch/case or polymorhisms with Visitor pattern
@@ -114,9 +114,9 @@ ticketDiscount SmallChild = smallChildTicketDiscount
 canBeTransported :: Person -> Transport -> Bool
 canBeTransported Adult _ = True
 canBeTransported Child _ = True
-canBeTransported SmallChild (CarTransport _) = True
-canBeTransported SmallChild PublicTransport = True
-canBeTransported SmallChild _ = False
+canBeTransported Infant (CarTransport _) = True
+canBeTransported Infant PublicTransport = True
+canBeTransported Infant _ = False
 
 -- Java if/then/else if/else -> Haskell guards
 isNonNegative :: Float -> Bool
