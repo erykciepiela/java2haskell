@@ -92,8 +92,8 @@ fuelConsumption km lpkm = lpkm * km
 childTicketDiscount :: Float
 childTicketDiscount = 0.5
 
-smallChildTicketDiscount :: Float
-smallChildTicketDiscount = 1
+infantTicketDiscount :: Float
+infantTicketDiscount = 1
 
 -- Java static methods without side effects -> Haskell functions
 --   - referential transparency, equasional reasoning, no side effects, no mutations
@@ -105,7 +105,7 @@ smallChildTicketDiscount = 1
 ticketDiscount :: Person -> Float
 ticketDiscount Adult = 0
 ticketDiscount Child = childTicketDiscount
-ticketDiscount Infant = smallChildTicketDiscount
+ticketDiscount Infant = infantTicketDiscount
 
 -- Java switch/case statement over multiple parameters -> Haskell ADTs pattern matching
 --   - Java nested switch/case or polymorhisms with Visitor pattern
@@ -195,9 +195,11 @@ instance HasCost Ticket where
 -- Most of Java design patterns -> Haskell functions or typeclasses with ad-hoc polymorhisms
 --   - Java Stream.reduce(a0, (a, b) -> a + b) -> Haskell Monoid, mconcat
 --   - typeclasses more expressive than interface, Monoid not expressible as interface
+instance Semigroup Cost where
+  (<>) = addCosts
+
 instance Monoid Cost where
   mempty = noCost
-  mappend = addCosts
 
 sumCosts :: [Cost] -> Cost
 sumCosts = mconcat
